@@ -1,8 +1,0 @@
-
-# concurrence / atomicité
-
-Unicode important (vital)
-
-WARNING pour Mariadb/MySQL => le utf8 utilisé n'est pas le VRAI
-utiliser utf8mb4 à la place :-)
-
