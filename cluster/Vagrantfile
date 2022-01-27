@@ -1,0 +1,52 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby sw=2 st=2 et :
+
+SERVERS_COUNT = 2
+CLIENTS_COUNT = 1
+
+HOSTS = {}
+
+Vagrant.configure("2") do |config|
+  config.vm.box = "debian/buster64"
+  config.vm.box_check_update = false
+
+  # Limiter la RAM des VM
+  config.vm.provider "virtualbox" do |vb|
+    vb.memory = "1200"
+  end
+
+  # IP adresses suffixes will go down 10 by 10 starting from 250.
+  # IP adresses suffixes will go up 10 by 10 starting from 10.
+  server_ip =  lambda { |i| "192.168.50.#{250-i*10}" }
+  client_ip =  lambda { |i| "192.168.50.#{10+i*10}" }
+
+  # Create as many servers as needed
+  SERVERS_COUNT.times do |i|
+    config.vm.define "server#{i}" do |machine|
+      machine.vm.hostname = "server#{i}"
+      machine.vm.network "private_network", ip: server_ip.call(i)
+
+      # Redirect host ports (from physical machine) into the first server VM
+      HOSTS[machine.vm.hostname] = server_ip.call(i)
+      machine.vm.provision "shell", path: "provision/server.sh"
+
+      if i == 0 
+        machine.vm.network "forwarded_port", guest: 80, host: 1080
+        machine.vm.network "forwarded_port", guest: 8080, host: 8080
+        machine.vm.network "forwarded_port", guest: 5432, host: 5432
+      end
+    end
+  end
+ 
+  # Create as many clients as needed
+  CLIENTS_COUNT.times do |i|
+    config.vm.define "client#{i}" do |machine|
+      machine.vm.hostname = "client#{i}"
+      machine.vm.network "private_network", ip: client_ip.call(i)
+
+      HOSTS[machine.vm.hostname] = client_ip.call(i)
+      machine.vm.provision "shell", path: "provision/client.sh"
+    end
+  end
+end
+

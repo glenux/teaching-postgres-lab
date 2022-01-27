@@ -1,0 +1,49 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby sw=2 st=2 et :
+
+ENV['VAGRANT_DEFAULT_PROVIDER'] = 'lxc'
+
+SERVERS_COUNT = 2
+CLIENTS_COUNT = 1
+
+Vagrant.configure('2') do |config|
+  # config.vm.box = 'debian/buster64'
+  config.vm.box = 'isc/lxc-debian-10'
+  config.vm.box_check_update = false
+
+  config.vm.provider :lxc do |lxc|
+    # Same effect as 'customize ["modifyvm", :id, "--memory", "1024"]' for VirtualBox
+    lxc.customize 'cgroup.memory.limit_in_bytes', '2000M'
+  end
+
+  # Mettre en place un cache pour APT
+  # config.vm.synced_folder 'v-cache', '/var/cache/apt'
+ 
+  # IP adresses suffixes will go down 10 by 10 starting from 250.
+  # IP adresses suffixes will go up 10 by 10 starting from 10.
+  server_ip =  lambda { |i| "192.168.50.#{250-i*10}" }
+  client_ip =  lambda { |i| "192.168.50.#{10+i*10}" }
+
+  SERVERS_COUNT.times do |idx|
+    config.vm.define "server#{idx}" do |machine|
+      machine.vm.hostname = "server#{idx}" 
+      machine.vm.network "private_network", lxc__bridge_name: 'vlxcbr1', ip: server_ip.call(idx) 
+      if idx == 0 
+        machine.vm.network "forwarded_port", guest: 80, host: 1080
+        machine.vm.network "forwarded_port", guest: 8080, host: 8080
+        machine.vm.network "forwarded_port", guest: 5432, host: 5432
+      end
+      config.vm.provision "shell", path: "provision/server.sh"
+    end
+  end
+
+  CLIENTS_COUNT.times do |idx|
+    config.vm.define "client#{idx}" do |machine|
+      machine.vm.hostname = "client#{idx}" 
+      machine.vm.network "private_network", lxc__bridge_name: 'vlxcbr1', ip: client_ip.call(idx) 
+      config.vm.provision "shell", path: "provision/client.sh"
+    end
+  end
+
+end
+
